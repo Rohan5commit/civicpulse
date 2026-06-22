@@ -24,7 +24,7 @@ const DemoRequestSchema = z.object({
     source: z.string(),
     severity: z.number(),
     affectedPopulation: z.number().optional(),
-  })),
+  })).max(30),
 });
 
 export async function POST(request: Request) {

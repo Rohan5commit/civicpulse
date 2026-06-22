@@ -54,80 +54,120 @@ export default function IncidentDetailPage() {
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
 
   useEffect(() => {
-    const signals = getAllSignals();
-    const incidents = normalizeSignals(signals);
-    const scores = scoreIncidents(incidents);
+    async function loadIncident() {
+      // Try the real agent pipeline via API
+      try {
+        const signals = getAllSignals();
+        const res = await fetch("/api/demo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signals }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const inc = data.incidents.find((i: NormalizedIncident) => i.id === incidentId);
+          const sc = data.scores.find((s: PriorityScore) => s.incidentId === incidentId);
+          const en = data.enrichments.find((e: EnrichedContext) => e.incidentId === incidentId);
+          const re = data.recommendations.find((r: ActionRecommendation) => r.incidentId === incidentId);
+          if (inc) setIncident(inc);
+          if (sc) setScore(sc);
+          if (en) setEnrichment(en);
+          if (re) setRecommendation(re);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Fall through to client-side fallback
+      }
 
-    const inc = incidents.find((i) => i.id === incidentId);
-    const sc = scores.find((s) => s.incidentId === incidentId);
+      // Client-side fallback: deterministic scoring only
+      const signals = getAllSignals();
+      const incidents = normalizeSignals(signals);
+      const scores = scoreIncidents(incidents);
 
-    if (inc) setIncident(inc);
-    if (sc) setScore(sc);
+      const inc = incidents.find((i) => i.id === incidentId);
+      const sc = scores.find((s) => s.incidentId === incidentId);
 
-    if (inc) {
-      const enriched: EnrichedContext = {
-        incidentId: inc.id,
-        severity: inc.severity,
-        urgency: inc.urgency,
-        affectedPopulation: inc.affectedPopulation,
-        weatherContext: "High temperature expected; compounding risk for water and health incidents in the zone",
-        proximityAnalysis: `${inc.duplicates.length} related signals detected nearby`,
-        compoundingRisk: inc.downstreamRisk,
-        duplicateAnalysis: inc.duplicates.length > 0 ? "Clustered with related reports" : "No duplicates",
-        estimatedImpact: `Affects ${inc.affectedPopulation.toLocaleString()} people in ${inc.location.zone}`,
-        missingInfo: inc.enrichment?.missingInfo ?? [],
-        recommendedTeam: inc.type.replace(/_/g, " ") + " response team",
-        escalationLevel: inc.severity >= 9 ? "supervisor" : inc.severity >= 7 ? "none" : "none",
-      };
-      setEnrichment(enriched);
+      if (inc) setIncident(inc);
+      if (sc) setScore(sc);
 
-      const rec: ActionRecommendation = {
-        incidentId: inc.id,
-        immediateNextStep: `Deploy ${enriched.recommendedTeam} to ${inc.location.address} immediately`,
-        suggestedAssignee: enriched.recommendedTeam,
-        escalationLevel: enriched.escalationLevel,
-        requiredResources: [
-          "Communication equipment",
-          "Response team personnel",
-          "Transport vehicle",
-          "Emergency supplies",
-        ],
-        safetyNotes: [
-          "Ensure responder safety protocols are followed",
-          "Establish communication before approach",
-        ],
-        followUpQuestions: [
-          "Is the incident still active?",
-          "Are there any ground updates?",
-          "Has the affected population been notified?",
-        ],
-        thirtyMinutePlan: [
-          "Dispatch response team to location",
-          "Notify relevant department heads",
-          "Establish communication with on-ground contacts",
-          "Begin resource mobilization",
-          "Set up incident monitoring",
-        ],
-        twentyFourHourRisk: inc.downstreamRisk,
-      };
-      setRecommendation(rec);
+      if (inc) {
+        setEnrichment({
+          incidentId: inc.id, severity: inc.severity, urgency: inc.urgency,
+          affectedPopulation: inc.affectedPopulation,
+          weatherContext: "High temperature expected; compounding risk for water and health incidents",
+          proximityAnalysis: `${inc.duplicates.length} related signals detected nearby`,
+          compoundingRisk: inc.downstreamRisk,
+          duplicateAnalysis: inc.duplicates.length > 0 ? "Clustered with related reports" : "No duplicates",
+          estimatedImpact: `Affects ${inc.affectedPopulation.toLocaleString()} people in ${inc.location.zone}`,
+          missingInfo: inc.enrichment?.missingInfo ?? [],
+          recommendedTeam: inc.type.replace(/_/g, " ") + " response team",
+          escalationLevel: (inc.severity >= 9 ? "supervisor" : "none") as "none" | "supervisor" | "emergency" | "external",
+        });
+        setRecommendation({
+          incidentId: inc.id,
+          immediateNextStep: `Deploy ${inc.type.replace(/_/g, " ")} response team to ${inc.location.address} immediately`,
+          suggestedAssignee: inc.type.replace(/_/g, " ") + " response team",
+          escalationLevel: inc.severity >= 9 ? "supervisor" : "none",
+          requiredResources: ["Communication equipment", "Response team personnel", "Transport vehicle", "Emergency supplies"],
+          safetyNotes: ["Ensure responder safety protocols are followed", "Establish communication before approach"],
+          followUpQuestions: ["Is the incident still active?", "Are there any ground updates?", "Has the affected population been notified?"],
+          thirtyMinutePlan: ["Dispatch response team to location", "Notify relevant department heads", "Establish communication with on-ground contacts", "Begin resource mobilization", "Set up incident monitoring"],
+          twentyFourHourRisk: inc.downstreamRisk,
+        });
+      }
+      setLoading(false);
     }
-
-    setLoading(false);
+    loadIncident();
   }, [incidentId]);
 
   const generateHandoff = useCallback(async () => {
     if (!incident || !enrichment || !recommendation) return;
     setGeneratingHandoff(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setHandoff({
-      incidentId: incident.id,
-      operatorHandoff: `${incident.title} reported at ${incident.location.address}. Severity ${incident.severity}/10 affecting ${incident.affectedPopulation.toLocaleString()} people. ${recommendation.immediateNextStep}. Assigned to ${enrichment.recommendedTeam}. Monitor for escalation in the next 2 hours.`,
-      fieldMessage: `URGENT: ${incident.title.slice(0, 40)}... — ${incident.location.zone}. Action needed immediately.`,
-      supervisorEscalation: `Escalation: ${incident.title} (${incident.severity}/10 severity, ${incident.urgency}/10 urgency). ${recommendation.escalationLevel} escalation required. ${recommendation.twentyFourHourRisk.slice(0, 150)}`,
-      publicUpdate: `Our team is actively responding to a ${incident.type.replace(/_/g, " ")} situation in ${incident.location.zone}. Residents are advised to follow safety guidance from local authorities.`,
-      generatedAt: new Date().toISOString(),
-    });
+    try {
+      const res = await fetch("/api/handoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          incidentId: incident.id,
+          incident: {
+            title: incident.title,
+            type: incident.type,
+            severity: incident.severity,
+            urgency: incident.urgency,
+            affectedPopulation: incident.affectedPopulation,
+            location: incident.location,
+            downstreamRisk: incident.downstreamRisk,
+            status: incident.status,
+          },
+          enrichment: {
+            recommendedTeam: enrichment.recommendedTeam,
+            escalationLevel: enrichment.escalationLevel,
+          },
+          recommendation: {
+            immediateNextStep: recommendation.immediateNextStep,
+            escalationLevel: recommendation.escalationLevel,
+            twentyFourHourRisk: recommendation.twentyFourHourRisk,
+          },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHandoff(data);
+      } else {
+        throw new Error("Handoff API failed");
+      }
+    } catch {
+      // Fallback: generate locally
+      setHandoff({
+        incidentId: incident.id,
+        operatorHandoff: `${incident.title} reported at ${incident.location.address}. Severity ${incident.severity}/10 affecting ${incident.affectedPopulation.toLocaleString()} people. ${recommendation.immediateNextStep}. Assigned to ${enrichment.recommendedTeam}. Monitor for escalation in the next 2 hours.`,
+        fieldMessage: `URGENT: ${incident.title.slice(0, 40)}... — ${incident.location.zone}. Action needed immediately.`,
+        supervisorEscalation: `Escalation: ${incident.title} (${incident.severity}/10 severity, ${incident.urgency}/10 urgency). ${recommendation.escalationLevel} escalation required. ${recommendation.twentyFourHourRisk.slice(0, 150)}`,
+        publicUpdate: `Our team is actively responding to a ${incident.type.replace(/_/g, " ")} situation in ${incident.location.zone}. Residents are advised to follow safety guidance from local authorities.`,
+        generatedAt: new Date().toISOString(),
+      });
+    }
     setGeneratingHandoff(false);
     setTab("handoff");
   }, [incident, enrichment, recommendation]);
