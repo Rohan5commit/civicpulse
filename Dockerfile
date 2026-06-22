@@ -21,7 +21,12 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/civicpulse ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/ ./__standalone_tmp__/
+RUN if [ -d "__standalone_tmp__/civicpulse" ]; then \
+      cp -r __standalone_tmp__/civicpulse/* ./; \
+    else \
+      cp -r __standalone_tmp__/* ./; \
+    fi && rm -rf __standalone_tmp__
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
