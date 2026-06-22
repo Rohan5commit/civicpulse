@@ -1,0 +1,11 @@
+/** @type {import('jest').Config} */
+module.exports = {
+  testEnvironment: "jsdom",
+  moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/$1",
+  },
+  testMatch: ["<rootDir>/__tests__/**/*.test.ts"],
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.json" }],
+  },
+};
