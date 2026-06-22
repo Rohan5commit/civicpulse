@@ -14,13 +14,12 @@ import {
 import {
   type NormalizedIncident,
   type PriorityScore,
-  type EnrichedContext,
-  type ActionRecommendation,
 } from "@/lib/schemas";
 import { getAllSignals } from "@/lib/intake/demo-data";
 import { normalizeSignals } from "@/lib/normalization/normalize";
 import { scoreIncidents } from "@/lib/scoring/priority";
-import { getTypeIcon } from "@/lib/board-utils";
+
+import { generateFallbackAnswer } from "@/lib/ask-fallback";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -51,6 +50,8 @@ const QUICK_QUESTIONS = [
     color: "text-slate-400",
   },
 ];
+
+
 
 export default function AskPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -104,7 +105,7 @@ export default function AskPage() {
 
       const assistantMsg: ChatMessage = {
         role: "assistant",
-        content: data.answer || generateLocalAnswer(question),
+        content: data.answer || generateFallbackAnswer(question, incidents, scores).answer,
         groundedIn: data.groundedIn || [],
         confidence: data.confidence || 0.8,
       };
@@ -112,7 +113,7 @@ export default function AskPage() {
     } catch {
       const assistantMsg: ChatMessage = {
         role: "assistant",
-        content: generateLocalAnswer(question),
+        content: generateFallbackAnswer(question, incidents, scores).answer,
         groundedIn: ["Local system state"],
         confidence: 0.75,
       };
@@ -120,47 +121,6 @@ export default function AskPage() {
     }
 
     setLoading(false);
-  };
-
-  const generateLocalAnswer = (question: string): string => {
-    const q = question.toLowerCase();
-    const ranked = [...scores].sort((a, b) => a.rank - b.rank);
-
-    if (q.includes("why") && q.includes("rank")) {
-      if (ranked.length >= 2) {
-        const top = incidents.find((i) => i.id === ranked[0].incidentId);
-        const second = incidents.find((i) => i.id === ranked[1].incidentId);
-        return `The ${top?.type.replace(/_/g, " ")} incident "${top?.title}" (Score: ${ranked[0].compositeScore}) is ranked #1 because it combines high severity (${top?.severity}/10), significant affected population (${top?.affectedPopulation.toLocaleString()}), and strong service criticality. The ${second?.type.replace(/_/g, " ")} incident "${second?.title}" (Score: ${ranked[1].compositeScore}) ranks lower due to fewer compounding factors.`;
-      }
-    }
-
-    if (q.includes("next 30") || q.includes("what should") || q.includes("do first")) {
-      if (ranked.length > 0) {
-        const top = incidents.find((i) => i.id === ranked[0].incidentId);
-        return `Focus immediately on #1 priority: "${top?.title}" in ${top?.location.zone}. Deploy ${top?.type.replace(/_/g, " ")} response team, establish communication with on-ground contacts, and begin resource mobilization. This incident affects ${top?.affectedPopulation.toLocaleString()} people and has a priority score of ${ranked[0].compositeScore}/100.`;
-      }
-    }
-
-    if (q.includes("risk") && q.includes("delay")) {
-      return `Delaying response to high-severity incidents leads to: (1) escalation of downstream risks — for example, water shortages during heatwaves can lead to heatstroke cases, (2) increased affected population as situations worsen, (3) potential casualties for time-critical incidents like building damage or electrical failures, and (4) broader service disruption across the zone. Time-sensitive incidents degrade rapidly without intervention.`;
-    }
-
-    if (q.includes("ignore") || q.includes("skip")) {
-      if (ranked.length > 0) {
-        const bottom = ranked[ranked.length - 1];
-        const low = incidents.find((i) => i.id === bottom.incidentId);
-        return `The lowest priority incident is "${low?.title}" (Score: ${bottom.compositeScore}) in ${low?.location.zone}. This can be safely deferred as it has lower severity, fewer affected people, and minimal downstream risk compared to current top priorities.`;
-      }
-    }
-
-    if (q.includes("urgent") || q.includes("top priority") || q.includes("most important")) {
-      if (ranked.length > 0) {
-        const top = incidents.find((i) => i.id === ranked[0].incidentId);
-        return `The most urgent incident is: "${top?.title}" ranked #${ranked[0].rank} with a priority score of ${ranked[0].compositeScore}/100. ${ranked[0].explanation}`;
-      }
-    }
-
-    return `I have ${incidents.length} active incidents in the system. The top priority is "${incidents.find((i) => i.id === ranked[0]?.incidentId)?.title}". You can ask me about specific incidents, priorities, recommended actions, or risks.`;
   };
 
   return (

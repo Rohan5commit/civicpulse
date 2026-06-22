@@ -1,0 +1,11 @@
+id,type,title,severity,urgency,affected_population,zone,source,latitude,longitude,status,confidence,downstream_risk
+SIG-001,water_outage,Critical Water Supply Failure,9,9,12500,Sector 7 - Residential,citizen_report,28.6139,77.2090,active,0.95,Heatstroke risk during heatwave - vulnerable elderly population
+SIG-002,road_flooding,Main Road Underpass Flooding,8,8,8200,Sector 3 - Commercial,citizen_report,28.6200,77.2150,active,0.90,Traffic gridlock affecting emergency vehicle access
+SIG-003,waste_pileup,Overflowing Waste Collection Point,4,3,1500,Sector 5 - Mixed Use,citizen_report,28.6100,77.2050,active,0.85,Odor and pest risk in residential area
+SIG-004,clinic_stock_shortage,Clinic Medicine Stock Critical,7,8,3200,Sector 2 - Healthcare Zone,facility_feed,28.6180,77.2120,active,0.92,Patient safety risk - essential medicines depleted
+SIG-005,heatwave_alert,Extreme Heat Advisory Active,9,9,25000,All Zones,weather_feed,28.6150,77.2100,active,0.98,Heatstroke and dehydration risk for outdoor workers
+SIG-006,electricity_failure,Transformer Station Trip,7,7,6800,Sector 4 - Industrial,complaint_log,28.6220,77.2180,active,0.88,Food spoilage in cold storage - supply chain impact
+SIG-007,safety_complaint,Unsecured Construction Site,5,6,2000,Sector 6 - Development,citizen_report,28.6080,77.2020,active,0.82,Child safety hazard near school zone
+SIG-008,water_outage,Minor Pipe Leak - Park Area,3,2,400,Sector 5 - Mixed Use,complaint_log,28.6110,77.2060,active,0.78,Water wastage - cosmetic issue
+SIG-009,road_flooding,Side Street Puddle,2,2,300,Sector 3 - Commercial,citizen_report,28.6195,77.2145,active,0.70,Minor inconvenience - cosmetic flooding
+SIG-010,heatwave_alert,Heatwave - Water Demand Surge,8,8,18000,All Zones,weather_feed,28.6150,77.2100,active,0.95,Infrastructure strain - backup supply needed
