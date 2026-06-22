@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  ChevronDown,
   Zap,
   Filter,
   MapPin,
@@ -25,8 +24,6 @@ import {
   type AccelerationMetric,
 } from "@/lib/schemas";
 import { getAllSignals, demoScenarios } from "@/lib/intake/demo-data";
-import { normalizeSignals } from "@/lib/normalization/normalize";
-import { scoreIncidents } from "@/lib/scoring/priority";
 import {
   getSeverityColor,
   getUrgencyColor,
@@ -36,7 +33,6 @@ import {
   formatTimeAgo,
   formatPopulation,
 } from "@/lib/board-utils";
-import { computeAccelerationMetrics } from "@/lib/scoring/acceleration";
 
 interface DemoState {
   phase: "setup" | "loading" | "ready";
@@ -67,107 +63,83 @@ export default function DemoPage() {
     setState((prev) => ({ ...prev, phase: "loading", selectedScenario: scenarioId }));
     const signals = getAllSignals();
 
-    setLoadingStep("Normalizing incoming signals...");
-    await new Promise((r) => setTimeout(r, 800));
-    const incidents = normalizeSignals(signals);
-    const normalizeTrace: AgentRunTrace = {
-      agentName: "Intake & Normalization Agent",
-      input: `${signals.length} raw signals from ${new Set(signals.map((s) => s.source)).size} sources`,
-      output: `${incidents.length} normalized incidents with duplicate clustering`,
-      duration: 800,
-      status: "success",
-      timestamp: new Date().toISOString(),
-    };
+    setLoadingStep("Sending signals to agent pipeline...");
+    try {
+      const response = await fetch("/api/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signals }),
+      });
 
-    setLoadingStep("Enriching incidents with AI context...");
-    await new Promise((r) => setTimeout(r, 1200));
-    const enrichments: EnrichedContext[] = incidents.map((inc) => ({
-      incidentId: inc.id,
-      severity: inc.severity,
-      urgency: inc.urgency,
-      affectedPopulation: inc.affectedPopulation,
-      weatherContext: "High ambient temperature expected; compounding factors for water and health incidents",
-      proximityAnalysis: `${inc.duplicates.length} related signals detected in ${inc.location.zone}`,
-      compoundingRisk: inc.downstreamRisk,
-      duplicateAnalysis: inc.duplicates.length > 0 ? "Clustered with related reports" : "No duplicates",
-      estimatedImpact: `Affects ${inc.affectedPopulation.toLocaleString()} people`,
-      missingInfo: inc.enrichment?.missingInfo ?? [],
-      recommendedTeam: inc.type.replace(/_/g, " ") + " response team",
-      escalationLevel: inc.severity >= 9 ? "supervisor" : "none",
-    }));
-    const enrichTrace: AgentRunTrace = {
-      agentName: "Context Enrichment Agent",
-      input: `${incidents.length} incidents for context enrichment`,
-      output: "Weather, proximity, compounding, and team assignment context generated",
-      duration: 1200,
-      status: "success",
-      timestamp: new Date().toISOString(),
-    };
+      if (!response.ok) throw new Error("Demo API failed");
 
-    setLoadingStep("Computing priority scores...");
-    await new Promise((r) => setTimeout(r, 600));
-    const scores = scoreIncidents(incidents);
-    const scoreTrace: AgentRunTrace = {
-      agentName: "Priority Scoring Agent",
-      input: `${incidents.length} enriched incidents for scoring`,
-      output: `Top priority: #1 "${incidents.find((i) => i.id === scores[0]?.incidentId)?.title}" (Score: ${scores[0]?.compositeScore})`,
-      duration: 600,
-      status: "success",
-      timestamp: new Date().toISOString(),
-    };
+      const data = await response.json();
 
-    setLoadingStep("Generating action recommendations...");
-    await new Promise((r) => setTimeout(r, 1000));
-    const recommendations: ActionRecommendation[] = incidents.map((inc) => ({
-      incidentId: inc.id,
-      immediateNextStep: `Deploy response team to ${inc.location.zone} for ${inc.type.replace(/_/g, " ")}`,
-      suggestedAssignee: `${inc.type.replace(/_/g, " ")} response team`,
-      escalationLevel: inc.severity >= 9 ? "supervisor" : "none",
-      requiredResources: ["Communication equipment", "Response team personnel"],
-      safetyNotes: ["Ensure responder safety protocols are followed"],
-      followUpQuestions: ["Is this incident still active?"],
-      thirtyMinutePlan: [
-        "Dispatch response team to location",
-        "Notify relevant department heads",
-        "Establish communication channel",
-        "Begin resource mobilization",
-      ],
-      twentyFourHourRisk: inc.downstreamRisk,
-    }));
-    const actionTrace: AgentRunTrace = {
-      agentName: "Action Recommendation Agent",
-      input: `${incidents.length} incidents for action planning`,
-      output: "Action plans, assignees, and 30-minute roadmaps generated",
-      duration: 1000,
-      status: "success",
-      timestamp: new Date().toISOString(),
-    };
+      setState({
+        phase: "ready",
+        selectedScenario: scenarioId,
+        incidents: data.incidents,
+        scores: data.scores,
+        enrichments: data.enrichments,
+        recommendations: data.recommendations,
+        traces: data.traces,
+        metrics: data.metrics,
+      });
+    } catch {
+      // Fallback: run client-side
+      setLoadingStep("Running client-side pipeline...");
+      const { normalizeSignals } = await import("@/lib/normalization/normalize");
+      const { scoreIncidents } = await import("@/lib/scoring/priority");
+      const { computeAccelerationMetrics } = await import("@/lib/scoring/acceleration");
 
-    setLoadingStep("Building communications...");
-    await new Promise((r) => setTimeout(r, 500));
-    const commsTrace: AgentRunTrace = {
-      agentName: "Communications Agent",
-      input: "Action recommendations for handoff generation",
-      output: "Operator handoff, field messages, and escalation summaries ready",
-      duration: 500,
-      status: "success",
-      timestamp: new Date().toISOString(),
-    };
+      const incidents = normalizeSignals(signals);
+      const scores = scoreIncidents(incidents);
+      const enrichments = incidents.map(inc => ({
+        incidentId: inc.id,
+        severity: inc.severity,
+        urgency: inc.urgency,
+        affectedPopulation: inc.affectedPopulation,
+        weatherContext: "High temperature expected",
+        proximityAnalysis: `${inc.duplicates.length} related signals`,
+        compoundingRisk: inc.downstreamRisk,
+        duplicateAnalysis: inc.duplicates.length > 0 ? "Clustered" : "No duplicates",
+        estimatedImpact: `Affects ${inc.affectedPopulation.toLocaleString()} people`,
+        missingInfo: inc.enrichment?.missingInfo ?? [],
+        recommendedTeam: inc.type.replace(/_/g, " ") + " response team",
+        escalationLevel: (inc.severity >= 9 ? "supervisor" : "none") as "none" | "supervisor" | "emergency" | "external",
+      }));
+      const recommendations = incidents.map(inc => ({
+        incidentId: inc.id,
+        immediateNextStep: `Deploy response team to ${inc.location.zone}`,
+        suggestedAssignee: inc.type.replace(/_/g, " ") + " team",
+        escalationLevel: inc.severity >= 9 ? "supervisor" : "none",
+        requiredResources: ["Communication equipment", "Response team personnel"],
+        safetyNotes: ["Follow safety protocols"],
+        followUpQuestions: ["Is the incident still active?"],
+        thirtyMinutePlan: ["Dispatch team", "Notify department heads", "Establish comms", "Mobilize resources"],
+        twentyFourHourRisk: inc.downstreamRisk,
+      }));
 
-    const totalProcessingTime =
-      normalizeTrace.duration + enrichTrace.duration + scoreTrace.duration + actionTrace.duration + commsTrace.duration;
-    const metrics = computeAccelerationMetrics(incidents.length, totalProcessingTime);
+      const metrics = computeAccelerationMetrics(incidents.length, 2000);
+      const traces: AgentRunTrace[] = [
+        { agentName: "Intake & Normalization Agent", input: `${signals.length} signals`, output: `${incidents.length} normalized`, duration: 50, status: "success", timestamp: new Date().toISOString() },
+        { agentName: "Context Enrichment Agent", input: `${incidents.length} incidents`, output: "Enrichment complete", duration: 100, status: "fallback", timestamp: new Date().toISOString() },
+        { agentName: "Priority Scoring Agent", input: `${incidents.length} incidents`, output: `Top: ${scores[0]?.compositeScore}`, duration: 30, status: "success", timestamp: new Date().toISOString() },
+        { agentName: "Action Recommendation Agent", input: `${recommendations.length} incidents`, output: "Plans generated", duration: 80, status: "fallback", timestamp: new Date().toISOString() },
+        { agentName: "Communications Agent", input: "Recommendations", output: "Handoff available on detail", duration: 0, status: "success", timestamp: new Date().toISOString() },
+      ];
 
-    setState({
-      phase: "ready",
-      selectedScenario: scenarioId,
-      incidents,
-      scores,
-      enrichments,
-      recommendations,
-      traces: [normalizeTrace, enrichTrace, scoreTrace, actionTrace, commsTrace],
-      metrics,
-    });
+      setState({
+        phase: "ready",
+        selectedScenario: scenarioId,
+        incidents,
+        scores,
+        enrichments,
+        recommendations,
+        traces,
+        metrics,
+      });
+    }
   }, []);
 
   const rankedIncidents = state.scores
@@ -227,7 +199,7 @@ export default function DemoPage() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8">
         <div className="max-w-md w-full text-center">
           <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-6" />
-          <h2 className="text-xl font-semibold mb-3">Processing Signals</h2>
+          <h2 className="text-xl font-semibold mb-3">Running Agent Pipeline</h2>
           <p className="text-slate-400">{loadingStep}</p>
         </div>
       </div>
@@ -244,7 +216,7 @@ export default function DemoPage() {
           <div>
             <h1 className="text-xl font-bold">Operations Board</h1>
             <p className="text-sm text-slate-400">
-              {demoScenarios.find((s) => s.id === state.selectedScenario)?.name} — {state.incidents.length} incidents loaded
+              {demoScenarios.find((s) => s.id === state.selectedScenario)?.name} — {state.incidents.length} incidents processed
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -398,11 +370,13 @@ export default function DemoPage() {
               <div className="space-y-3">
                 {state.traces.map((trace, i) => (
                   <div key={i} className="flex items-start gap-3 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${
+                      trace.status === "success" ? "text-green-400" : trace.status === "fallback" ? "text-yellow-400" : "text-red-400"
+                    }`} />
                     <div>
                       <div className="font-medium text-white">{trace.agentName}</div>
                       <div className="text-xs text-slate-400">{trace.output.slice(0, 60)}...</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{trace.duration}ms</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{trace.duration}ms {trace.status === "fallback" ? "(deterministic fallback)" : ""}</div>
                     </div>
                   </div>
                 ))}
