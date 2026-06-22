@@ -1,10 +1,6 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 
-FROM base AS deps
-COPY package*.json ./
-RUN npm ci --omit=dev
-
 FROM base AS builder
 COPY package*.json ./
 RUN npm ci
@@ -23,9 +19,9 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/ ./__standalone_tmp__/
 RUN if [ -d "__standalone_tmp__/civicpulse" ]; then \
-      cp -r __standalone_tmp__/civicpulse/* ./; \
+      cp -r __standalone_tmp__/civicpulse/. ./; \
     else \
-      cp -r __standalone_tmp__/* ./; \
+      cp -r __standalone_tmp__/. ./; \
     fi && rm -rf __standalone_tmp__
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
