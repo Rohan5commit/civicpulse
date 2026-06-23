@@ -116,10 +116,5 @@ function buildEnrichedContext(
 export async function enrichAllIncidents(
   incidents: NormalizedIncident[]
 ): Promise<EnrichedContext[]> {
-  const results: EnrichedContext[] = [];
-  for (const incident of incidents) {
-    const enriched = await enrichIncident(incident);
-    results.push(enriched);
-  }
-  return results;
+  return Promise.all(incidents.map(enrichIncident));
 }
