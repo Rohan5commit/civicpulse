@@ -180,6 +180,9 @@ export async function POST(request: Request) {
 
     const metrics = computeAccelerationMetrics(incidents.length, totalTime);
 
+    const allEnriched = enrichmentResults.every((r) => r.status === "fulfilled");
+    const allRecommendations = recResults.every((r) => r.status === "fulfilled");
+
     return NextResponse.json({
       incidents,
       scores,
@@ -188,6 +191,8 @@ export async function POST(request: Request) {
       traces,
       metrics,
       processingTimeMs: totalTime,
+      enrichmentSource: allEnriched ? "ai" : "fallback",
+      recommendationSource: allRecommendations ? "ai" : "fallback",
     });
   } catch (error) {
     return NextResponse.json(

@@ -152,7 +152,7 @@ export default function IncidentDetailPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setHandoff(data);
+        setHandoff({ ...data, source: data.source || "ai" });
       } else {
         throw new Error("Handoff API failed");
       }
