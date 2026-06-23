@@ -75,6 +75,7 @@ export default function DemoPage() {
 
       const data = await response.json();
 
+      sessionStorage.setItem("civicpulse_demo", JSON.stringify(data));
       setState({
         phase: "ready",
         selectedScenario: scenarioId,
@@ -129,6 +130,8 @@ export default function DemoPage() {
         { agentName: "Communications Agent", input: "Recommendations", output: "Handoff available on detail", duration: 0, status: "success", timestamp: new Date().toISOString() },
       ];
 
+      const fallbackData = { incidents, scores, enrichments, recommendations, traces, metrics };
+      sessionStorage.setItem("civicpulse_demo", JSON.stringify(fallbackData));
       setState({
         phase: "ready",
         selectedScenario: scenarioId,

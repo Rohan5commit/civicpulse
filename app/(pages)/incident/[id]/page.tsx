@@ -54,6 +54,23 @@ export default function IncidentDetailPage() {
 
   useEffect(() => {
     async function loadIncident() {
+      // Try sessionStorage first (from demo page)
+      try {
+        const cached = JSON.parse(sessionStorage.getItem("civicpulse_demo") || "{}");
+        if (cached.incidents) {
+          const inc = cached.incidents.find((i: NormalizedIncident) => i.id === incidentId);
+          const sc = cached.scores?.find((s: PriorityScore) => s.incidentId === incidentId);
+          const en = cached.enrichments?.find((e: EnrichedContext) => e.incidentId === incidentId);
+          const re = cached.recommendations?.find((r: ActionRecommendation) => r.incidentId === incidentId);
+          if (inc) setIncident(inc);
+          if (sc) setScore(sc);
+          if (en) setEnrichment(en);
+          if (re) setRecommendation(re);
+          setLoading(false);
+          return;
+        }
+      } catch { /* ignore parse errors */ }
+
       // Try the real agent pipeline via API
       try {
         const signals = getAllSignals();
