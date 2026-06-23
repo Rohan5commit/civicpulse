@@ -13,7 +13,7 @@ const WEIGHTS = {
   resourceConstraint: 8,
   locationContext: 7,
   signalConfidence: 5,
-  duplicatePenalty: -3,
+  duplicatePenalty: 3,
   serviceCriticality: 11,
 };
 
@@ -146,7 +146,7 @@ export function scoreIncidents(
       breakdown.resourceConstraint * (WEIGHTS.resourceConstraint / 100) +
       breakdown.locationContext * (WEIGHTS.locationContext / 100) +
       breakdown.signalConfidence * (WEIGHTS.signalConfidence / 100) +
-      breakdown.duplicatePenalty * (WEIGHTS.duplicatePenalty / 100) +
+      -breakdown.duplicatePenalty * (WEIGHTS.duplicatePenalty / 100) +
       breakdown.serviceCriticality * (WEIGHTS.serviceCriticality / 100);
 
     const normalizedScore = Math.max(0, Math.min(100, compositeScore));
