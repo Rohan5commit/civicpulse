@@ -22,6 +22,8 @@ interface LocalAskResult {
   confidence: number;
 }
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   const authError = validateApiSecret(request);
   if (authError) return authError;

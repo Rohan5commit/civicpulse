@@ -41,6 +41,8 @@ interface HandoffResult {
   publicUpdate: string;
 }
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   const authError = validateApiSecret(request);
   if (authError) return authError;

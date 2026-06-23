@@ -74,6 +74,8 @@ function recommendationFallback(
   };
 }
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   const authError = validateApiSecret(request);
   if (authError) return authError;
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
     // Step 3: Enrich with AI — parallelized with fallback
     const enrichStart = Date.now();
     const enrichmentResults = await Promise.allSettled(
-      incidents.map((inc) => enrichIncident(inc))
+      incidents.map((inc) => enrichIncident(inc, 0))
     );
     const enrichments = enrichmentResults.map((r, i) =>
       r.status === "fulfilled" ? r.value : enrichmentFallback(incidents[i])

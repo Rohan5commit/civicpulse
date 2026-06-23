@@ -23,7 +23,8 @@ const SYSTEM_PROMPT = `You are a community operations AI enrichment agent. Given
 }`;
 
 export async function enrichIncident(
-  incident: NormalizedIncident
+  incident: NormalizedIncident,
+  maxRetries = 2
 ): Promise<EnrichedContext> {
   const userMessage = `Incident: ${incident.title}
 Type: ${incident.type.replace(/_/g, " ")}
@@ -44,7 +45,7 @@ Current Status: ${incident.status}`;
     temperature: 0.2,
     maxTokens: 512,
     jsonMode: true,
-  });
+  }, maxRetries);
 
   const fallback: AiEnrichmentResult = {
     weatherContext: "Weather data not available via AI",
