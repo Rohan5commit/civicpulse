@@ -1,20 +1,6 @@
 import type { IncidentSignal, NormalizedIncident } from "@/lib/schemas";
 import { NormalizedIncidentSchema } from "@/lib/schemas";
 
-const TYPE_MAP: Record<string, string> = {
-  water_outage: "Water Supply Failure",
-  road_flooding: "Road Flooding",
-  waste_pileup: "Waste Accumulation",
-  clinic_shortage: "Medical Supply Shortage",
-  heatwave_alert: "Heatwave Alert",
-  electricity_issue: "Electricity Failure",
-  safety_complaint: "Safety Concern",
-  traffic_disruption: "Traffic Disruption",
-  noise_complaint: "Noise Issue",
-  building_damage: "Structural Damage",
-  other: "General Issue",
-};
-
 const SERVICE_CRITICALITY: Record<string, number> = {
   water_outage: 9,
   road_flooding: 8,

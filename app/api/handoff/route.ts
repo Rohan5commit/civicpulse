@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
 
 const HandoffRequestSchema = z.object({
   incidentId: z.string(),
@@ -24,6 +25,21 @@ const HandoffRequestSchema = z.object({
   }),
 });
 
+const SYSTEM_PROMPT = `You are a community operations communications agent. Generate clear, concise handoff summaries. Return ONLY valid JSON:
+{
+  "operatorHandoff": "string - detailed handoff for next operator (3-5 sentences)",
+  "fieldMessage": "string - short WhatsApp/SMS style message (max 160 chars)",
+  "supervisorEscalation": "string - formal escalation summary (2-3 sentences)",
+  "publicUpdate": "string - safe public-facing update (2-3 sentences, no sensitive details)"
+}`;
+
+interface HandoffResult {
+  operatorHandoff: string;
+  fieldMessage: string;
+  supervisorEscalation: string;
+  publicUpdate: string;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -33,7 +49,6 @@ export async function POST(request: Request) {
     }
 
     const { incidentId, incident, enrichment, recommendation } = parsed.data;
-    const apiKey = process.env.NVIDIA_API_KEY;
 
     const fallback = {
       incidentId,
@@ -44,52 +59,37 @@ export async function POST(request: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    if (!apiKey) return NextResponse.json(fallback);
-
-    const systemPrompt = `You are a community operations communications agent. Generate clear, concise handoff summaries. Return ONLY valid JSON:
-{
-  "operatorHandoff": "string - detailed handoff for next operator (3-5 sentences)",
-  "fieldMessage": "string - short WhatsApp/SMS style message (max 160 chars)",
-  "supervisorEscalation": "string - formal escalation summary (2-3 sentences)",
-  "publicUpdate": "string - safe public-facing update (2-3 sentences, no sensitive details)"
-}`;
-
     const userMessage = `Incident: ${incident.title}\nSeverity: ${incident.severity}/10 | Urgency: ${incident.urgency}/10\nLocation: ${incident.location.address} (${incident.location.zone})\nAffected: ${incident.affectedPopulation.toLocaleString()} people\nTeam: ${enrichment.recommendedTeam}\nImmediate Action: ${recommendation.immediateNextStep}\nEscalation: ${recommendation.escalationLevel}\nKey Risk: ${recommendation.twentyFourHourRisk}\nStatus: ${incident.status}`;
 
-    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "meta/llama-3.1-8b-instruct",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.3,
-        max_tokens: 500,
-        response_format: { type: "json_object" },
-      }),
+    const response = await callNimWithRetry({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.3,
+      maxTokens: 500,
+      jsonMode: true,
     });
 
-    if (!response.ok) return NextResponse.json(fallback);
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    try {
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      return NextResponse.json({
-        incidentId,
-        operatorHandoff: parsed.operatorHandoff || fallback.operatorHandoff,
-        fieldMessage: parsed.fieldMessage || fallback.fieldMessage,
-        supervisorEscalation: parsed.supervisorEscalation || fallback.supervisorEscalation,
-        publicUpdate: parsed.publicUpdate || fallback.publicUpdate,
-        generatedAt: new Date().toISOString(),
-      });
-    } catch {
+    if (!response.success) {
       return NextResponse.json(fallback);
     }
+
+    const result = parseJsonResponse<HandoffResult>(response.content, {
+      operatorHandoff: fallback.operatorHandoff,
+      fieldMessage: fallback.fieldMessage,
+      supervisorEscalation: fallback.supervisorEscalation,
+      publicUpdate: fallback.publicUpdate,
+    });
+
+    return NextResponse.json({
+      incidentId,
+      operatorHandoff: result.operatorHandoff || fallback.operatorHandoff,
+      fieldMessage: result.fieldMessage || fallback.fieldMessage,
+      supervisorEscalation: result.supervisorEscalation || fallback.supervisorEscalation,
+      publicUpdate: result.publicUpdate || fallback.publicUpdate,
+      generatedAt: new Date().toISOString(),
+    });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

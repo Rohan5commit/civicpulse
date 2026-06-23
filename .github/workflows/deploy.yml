@@ -46,7 +46,7 @@ jobs:
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
-          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}
+          image: us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/${{ env.SERVICE_NAME }}
           env_vars: |
             NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
           memory: 512Mi

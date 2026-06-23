@@ -1,10 +1,24 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
 
 const AskSchema = z.object({
   question: z.string().min(1),
   context: z.string().optional(),
 });
+
+const SYSTEM_PROMPT = `You are CivicPulse, a community operations AI assistant. You answer questions grounded ONLY in the provided incident data and system state. Never invent facts. Be concise and direct. Return ONLY valid JSON:
+{
+  "answer": "string - direct answer grounded in data",
+  "groundedIn": ["string - which data points support this answer"],
+  "confidence": number
+}`;
+
+interface LocalAskResult {
+  answer: string;
+  groundedIn: string[];
+  confidence: number;
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,72 +33,36 @@ export async function POST(request: Request) {
     }
 
     const { question, context } = parsed.data;
-    const apiKey = process.env.NVIDIA_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json({
-        answer: generateLocalAnswer(question),
-        groundedIn: ["Local system state"],
-        confidence: 0.75,
-      });
-    }
-
-    const systemPrompt = `You are CivicPulse, a community operations AI assistant. You answer questions grounded ONLY in the provided incident data and system state. Never invent facts. Be concise and direct. Return ONLY valid JSON:
-{
-  "answer": "string - direct answer grounded in data",
-  "groundedIn": ["string - which data points support this answer"],
-  "confidence": number
-}`;
 
     const userMessage = `System State:\n${context || "No active incidents loaded"}\n\nOperator Question: ${question}\n\nAnswer based ONLY on the data above. If the data doesn't support an answer, say so.`;
 
-    const response = await fetch(
-      "https://integrate.api.nvidia.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "meta/llama-3.1-8b-instruct",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          temperature: 0.1,
-          max_tokens: 400,
-          response_format: { type: "json_object" },
-        }),
-      }
-    );
+    const fallback: LocalAskResult = {
+      answer: generateLocalAnswer(question),
+      groundedIn: ["Local system state"],
+      confidence: 0.75,
+    };
 
-    if (!response.ok) {
-      return NextResponse.json({
-        answer: generateLocalAnswer(question),
-        groundedIn: ["Local system state (API fallback)"],
-        confidence: 0.7,
-      });
+    const response = await callNimWithRetry({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.1,
+      maxTokens: 400,
+      jsonMode: true,
+    });
+
+    if (!response.success) {
+      return NextResponse.json(fallback);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    const result = parseJsonResponse<LocalAskResult>(response.content, fallback);
 
-    try {
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      return NextResponse.json({
-        answer: parsed.answer || generateLocalAnswer(question),
-        groundedIn: parsed.groundedIn || ["System state"],
-        confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.8,
-      });
-    } catch {
-      return NextResponse.json({
-        answer: content || generateLocalAnswer(question),
-        groundedIn: ["NVIDIA NIM response"],
-        confidence: 0.75,
-      });
-    }
+    return NextResponse.json({
+      answer: result.answer || fallback.answer,
+      groundedIn: result.groundedIn?.length ? result.groundedIn : fallback.groundedIn,
+      confidence: typeof result.confidence === "number" ? result.confidence : fallback.confidence,
+    });
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },

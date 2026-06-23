@@ -4,9 +4,13 @@ import { normalizeSignals } from "@/lib/normalization/normalize";
 import { scoreIncidents } from "@/lib/scoring/priority";
 import { enrichIncident } from "@/lib/agents/enrichment";
 import { generateActionRecommendation } from "@/lib/recommendations/actions";
-import { generateHandoff } from "@/lib/handoff/generate";
 import { computeAccelerationMetrics } from "@/lib/scoring/acceleration";
-import type { IncidentSignal } from "@/lib/schemas";
+import type {
+  IncidentSignal,
+  NormalizedIncident,
+  EnrichedContext,
+  ActionRecommendation,
+} from "@/lib/schemas";
 
 const DemoRequestSchema = z.object({
   signals: z.array(z.object({
@@ -26,6 +30,48 @@ const DemoRequestSchema = z.object({
     affectedPopulation: z.number().optional(),
   })).max(30),
 });
+
+function enrichmentFallback(incident: NormalizedIncident): EnrichedContext {
+  return {
+    incidentId: incident.id,
+    severity: incident.severity,
+    urgency: incident.urgency,
+    affectedPopulation: incident.affectedPopulation,
+    weatherContext: "Weather data not available via AI",
+    proximityAnalysis: "Proximity analysis pending",
+    compoundingRisk: incident.downstreamRisk,
+    duplicateAnalysis:
+      incident.duplicates.length > 0
+        ? `${incident.duplicates.length} related reports detected`
+        : "No duplicate reports detected",
+    estimatedImpact: `Affects ${incident.affectedPopulation.toLocaleString()} people in ${incident.location.zone}`,
+    missingInfo: incident.enrichment?.missingInfo ?? [],
+    recommendedTeam: incident.type.replace(/_/g, " ") + " response team",
+    escalationLevel: incident.severity >= 9 ? "supervisor" : ("none" as const),
+  };
+}
+
+function recommendationFallback(
+  incident: NormalizedIncident,
+  enriched: EnrichedContext
+): ActionRecommendation {
+  return {
+    incidentId: incident.id,
+    immediateNextStep: `Deploy ${enriched.recommendedTeam} to ${incident.location.address}`,
+    suggestedAssignee: enriched.recommendedTeam,
+    escalationLevel: enriched.escalationLevel,
+    requiredResources: ["Communication equipment", "Response team personnel"],
+    safetyNotes: ["Follow safety protocols"],
+    followUpQuestions: ["Is the incident still active?"],
+    thirtyMinutePlan: [
+      "Dispatch response team",
+      "Notify department heads",
+      "Establish communication",
+      "Mobilize resources",
+    ],
+    twentyFourHourRisk: incident.downstreamRisk || "Situation may escalate if not addressed promptly",
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -52,30 +98,39 @@ export async function POST(request: Request) {
     const scores = scoreIncidents(incidents);
     const scoreTime = Date.now() - scoreStart;
 
-    // Step 3: Enrich with AI (NIM or fallback)
+    // Step 3: Enrich with AI — parallelized with fallback
     const enrichStart = Date.now();
-    const enrichments = [];
-    for (const incident of incidents) {
-      const enrichment = await enrichIncident(incident);
-      enrichments.push(enrichment);
-    }
+    const enrichmentResults = await Promise.allSettled(
+      incidents.map((inc) => enrichIncident(inc))
+    );
+    const enrichments = enrichmentResults.map((r, i) =>
+      r.status === "fulfilled" ? r.value : enrichmentFallback(incidents[i])
+    );
     const enrichTime = Date.now() - enrichStart;
 
-    // Step 4: Generate recommendations
+    // Step 4: Generate recommendations — parallelized with fallback
     const actionStart = Date.now();
-    const recommendations = [];
-    for (const incident of incidents) {
-      const enrichment = enrichments.find(e => e.incidentId === incident.id);
-      if (enrichment) {
-        const rec = await generateActionRecommendation(incident, enrichment);
-        recommendations.push(rec);
-      }
-    }
+    const recResults = await Promise.allSettled(
+      incidents.map((inc, i) =>
+        generateActionRecommendation(inc, enrichments[i])
+      )
+    );
+    const recommendations = recResults.map((r, i) =>
+      r.status === "fulfilled"
+        ? r.value
+        : recommendationFallback(incidents[i], enrichments[i])
+    );
     const actionTime = Date.now() - actionStart;
 
     const totalTime = Date.now() - startTime;
 
-    // Build agent traces
+    // Determine enrichment status for traces
+    const enrichStatus = enrichmentResults.every((r) => r.status === "fulfilled")
+      ? "success"
+      : enrichmentResults.every((r) => r.status === "rejected")
+        ? "error"
+        : ("success" as const);
+
     const traces = [
       {
         agentName: "Intake & Normalization Agent",
@@ -90,13 +145,13 @@ export async function POST(request: Request) {
         input: `${incidents.length} incidents for enrichment`,
         output: "Weather, proximity, compounding, and team context generated",
         duration: enrichTime,
-        status: "success" as const,
+        status: enrichStatus as "success" | "fallback" | "error",
         timestamp: new Date().toISOString(),
       },
       {
         agentName: "Priority Scoring Agent",
         input: `${incidents.length} enriched incidents`,
-        output: `Top: "${incidents.find(i => i.id === scores[0]?.incidentId)?.title}" (Score: ${scores[0]?.compositeScore})`,
+        output: `Top: "${incidents.find((i) => i.id === scores[0]?.incidentId)?.title}" (Score: ${scores[0]?.compositeScore})`,
         duration: scoreTime,
         status: "success" as const,
         timestamp: new Date().toISOString(),

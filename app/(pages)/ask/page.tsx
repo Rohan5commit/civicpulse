@@ -11,14 +11,9 @@ import {
   BarChart3,
   Shield,
 } from "lucide-react";
-import {
-  type NormalizedIncident,
-  type PriorityScore,
-} from "@/lib/schemas";
 import { getAllSignals } from "@/lib/intake/demo-data";
 import { normalizeSignals } from "@/lib/normalization/normalize";
 import { scoreIncidents } from "@/lib/scoring/priority";
-
 import { generateFallbackAnswer } from "@/lib/ask-fallback";
 
 interface ChatMessage {
@@ -52,23 +47,14 @@ const QUICK_QUESTIONS = [
 ];
 
 
-
 export default function AskPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [incidents, setIncidents] = useState<NormalizedIncident[]>([]);
-  const [scores, setScores] = useState<PriorityScore[]>([]);
-
-  useEffect(() => {
-    const signals = getAllSignals();
-    const incs = normalizeSignals(signals);
-    const scs = scoreIncidents(incs);
-    setIncidents(incs);
-    setScores(scs);
-  }, []);
+  const incidents = normalizeSignals(getAllSignals());
+  const scores = scoreIncidents(incidents);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

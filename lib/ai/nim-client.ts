@@ -1,5 +1,6 @@
 const NIM_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 const NIM_MODEL = "meta/llama-3.1-8b-instruct";
+const REQUEST_TIMEOUT_MS = 20_000;
 
 interface NimMessage {
   role: "system" | "user" | "assistant";
@@ -40,6 +41,9 @@ export async function callNim(options: NimRequestOptions): Promise<NimResponse> 
     body.response_format = { type: "json_object" };
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
     const response = await fetch(NIM_ENDPOINT, {
       method: "POST",
@@ -48,6 +52,7 @@ export async function callNim(options: NimRequestOptions): Promise<NimResponse> 
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -64,11 +69,15 @@ export async function callNim(options: NimRequestOptions): Promise<NimResponse> 
 
     return { content, success: true };
   } catch (error) {
-    return {
-      content: "",
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown NIM error",
-    };
+    const msg =
+      error instanceof DOMException && error.name === "AbortError"
+        ? `NIM request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
+        : error instanceof Error
+          ? error.message
+          : "Unknown NIM error";
+    return { content: "", success: false, error: msg };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

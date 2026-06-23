@@ -47,7 +47,6 @@ describe("normalizeSignals", () => {
 
     const result = normalizeSignals([baseSignal, dup1, dup2]);
     expect(result).toHaveLength(3);
-    const ids = result.map((r) => r.id);
     expect(result.find((r) => r.id === "test-001")?.duplicates.length).toBe(2);
     expect(result.find((r) => r.id === "dup-1")?.duplicates.length).toBeGreaterThanOrEqual(1);
   });
