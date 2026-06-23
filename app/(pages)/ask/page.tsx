@@ -21,6 +21,7 @@ interface ChatMessage {
   content: string;
   groundedIn?: string[];
   confidence?: number;
+  source?: "ai" | "fallback";
 }
 
 const QUICK_QUESTIONS = [
@@ -94,6 +95,7 @@ export default function AskPage() {
         content: data.answer || generateFallbackAnswer(question, incidents, scores).answer,
         groundedIn: data.groundedIn || [],
         confidence: data.confidence || 0.8,
+        source: data.source || "fallback",
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch {
@@ -102,6 +104,7 @@ export default function AskPage() {
         content: generateFallbackAnswer(question, incidents, scores).answer,
         groundedIn: ["Local system state"],
         confidence: 0.75,
+        source: "fallback",
       };
       setMessages((prev) => [...prev, assistantMsg]);
     }
@@ -162,6 +165,13 @@ export default function AskPage() {
                   : "bg-slate-900 border border-slate-800"
               }`}>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                {msg.source === "fallback" && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                      AI unavailable — using fallback
+                    </span>
+                  </div>
+                )}
                 {msg.groundedIn && msg.groundedIn.length > 0 && (
                   <div className="mt-3 pt-2 border-t border-slate-700/50">
                     <span className="text-[10px] text-slate-500 uppercase tracking-wider">Grounded in: </span>

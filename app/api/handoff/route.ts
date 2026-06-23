@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     });
 
     if (!response.success) {
-      return NextResponse.json(fallback);
+      return NextResponse.json({ ...fallback, source: "fallback" as const });
     }
 
     const result = parseJsonResponse<HandoffResult>(response.content, {
@@ -93,6 +93,7 @@ export async function POST(request: Request) {
       supervisorEscalation: result.supervisorEscalation || fallback.supervisorEscalation,
       publicUpdate: result.publicUpdate || fallback.publicUpdate,
       generatedAt: new Date().toISOString(),
+      source: "ai" as const,
     });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

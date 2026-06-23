@@ -49,7 +49,7 @@ export default function IncidentDetailPage() {
   const [score, setScore] = useState<PriorityScore | null>(null);
   const [enrichment, setEnrichment] = useState<EnrichedContext | null>(null);
   const [recommendation, setRecommendation] = useState<ActionRecommendation | null>(null);
-  const [handoff, setHandoff] = useState<HandoffSummary | null>(null);
+  const [handoff, setHandoff] = useState<HandoffSummary & { source?: "ai" | "fallback" } | null>(null);
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
 
   useEffect(() => {
@@ -159,6 +159,7 @@ export default function IncidentDetailPage() {
     } catch {
       // Fallback: generate locally
       setHandoff({
+        source: "fallback",
         incidentId: incident.id,
         operatorHandoff: `${incident.title} reported at ${incident.location.address}. Severity ${incident.severity}/10 affecting ${incident.affectedPopulation.toLocaleString()} people. ${recommendation.immediateNextStep}. Assigned to ${enrichment.recommendedTeam}. Monitor for escalation in the next 2 hours.`,
         fieldMessage: `URGENT: ${incident.title.slice(0, 40)}... — ${incident.location.zone}. Action needed immediately.`,
@@ -487,7 +488,12 @@ export default function IncidentDetailPage() {
                   <p className="text-sm text-slate-300 leading-relaxed">{handoff.publicUpdate}</p>
                 </div>
 
-                <div className="text-xs text-slate-500 text-right">
+                {handoff.source === "fallback" && (
+                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                  <span className="text-xs font-medium text-yellow-400">AI unavailable — using fallback</span>
+                </div>
+              )}
+              <div className="text-xs text-slate-500 text-right">
                   Generated at {new Date(handoff.generatedAt).toLocaleTimeString()}
                 </div>
               </>

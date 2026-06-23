@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     });
 
     if (!response.success) {
-      return NextResponse.json(fallback);
+      return NextResponse.json({ ...fallback, source: "fallback" as const });
     }
 
     const result = parseJsonResponse<LocalAskResult>(response.content, fallback);
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       answer: result.answer || fallback.answer,
       groundedIn: result.groundedIn?.length ? result.groundedIn : fallback.groundedIn,
       confidence: typeof result.confidence === "number" ? result.confidence : fallback.confidence,
+      source: "ai" as const,
     });
   } catch {
     return NextResponse.json(
