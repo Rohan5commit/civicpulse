@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
+import { validateApiSecret } from "@/lib/auth/api-secret";
 
 const HandoffRequestSchema = z.object({
   incidentId: z.string(),
@@ -41,6 +42,9 @@ interface HandoffResult {
 }
 
 export async function POST(request: Request) {
+  const authError = validateApiSecret(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const parsed = HandoffRequestSchema.safeParse(body);

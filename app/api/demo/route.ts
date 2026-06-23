@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { validateApiSecret } from "@/lib/auth/api-secret";
 import { normalizeSignals } from "@/lib/normalization/normalize";
 import { scoreIncidents } from "@/lib/scoring/priority";
 import { enrichIncident } from "@/lib/agents/enrichment";
@@ -74,6 +75,9 @@ function recommendationFallback(
 }
 
 export async function POST(request: Request) {
+  const authError = validateApiSecret(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const parsed = DemoRequestSchema.safeParse(body);

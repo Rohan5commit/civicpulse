@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
+import { validateApiSecret } from "@/lib/auth/api-secret";
 
 const AskSchema = z.object({
   question: z.string().min(1),
@@ -21,6 +22,9 @@ interface LocalAskResult {
 }
 
 export async function POST(request: Request) {
+  const authError = validateApiSecret(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const parsed = AskSchema.safeParse(body);

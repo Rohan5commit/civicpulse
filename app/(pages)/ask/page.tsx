@@ -83,7 +83,10 @@ export default function AskPage() {
 
       const response = await fetch("/api/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.NEXT_PUBLIC_API_SECRET ? { "x-api-secret": process.env.NEXT_PUBLIC_API_SECRET } : {}),
+        },
         body: JSON.stringify({ question, context: contextLines }),
       });
 

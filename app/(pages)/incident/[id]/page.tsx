@@ -59,7 +59,10 @@ export default function IncidentDetailPage() {
         const signals = getAllSignals();
         const res = await fetch("/api/demo", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.NEXT_PUBLIC_API_SECRET ? { "x-api-secret": process.env.NEXT_PUBLIC_API_SECRET } : {}),
+          },
           body: JSON.stringify({ signals }),
         });
         if (res.ok) {
@@ -126,7 +129,10 @@ export default function IncidentDetailPage() {
     try {
       const res = await fetch("/api/handoff", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.NEXT_PUBLIC_API_SECRET ? { "x-api-secret": process.env.NEXT_PUBLIC_API_SECRET } : {}),
+        },
         body: JSON.stringify({
           incidentId: incident.id,
           incident: {
