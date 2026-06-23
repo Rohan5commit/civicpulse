@@ -23,7 +23,7 @@ import {
   type AgentRunTrace,
   type AccelerationMetric,
 } from "@/lib/schemas";
-import { getAllSignals, demoScenarios } from "@/lib/intake/demo-data";
+import { getSignalsByScenario, demoScenarios } from "@/lib/intake/demo-data";
 import {
   getSeverityColor,
   getUrgencyColor,
@@ -61,7 +61,7 @@ export default function DemoPage() {
 
   const startDemo = useCallback(async (scenarioId: string) => {
     setState((prev) => ({ ...prev, phase: "loading", selectedScenario: scenarioId }));
-    const signals = getAllSignals();
+    const signals = getSignalsByScenario(scenarioId);
 
     setLoadingStep("Sending signals to agent pipeline...");
     try {
