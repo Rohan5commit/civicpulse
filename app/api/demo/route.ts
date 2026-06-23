@@ -133,7 +133,7 @@ export async function POST(request: Request) {
       ? "success"
       : enrichmentResults.every((r) => r.status === "rejected")
         ? "error"
-        : ("success" as const);
+        : "fallback";
 
     const traces = [
       {
