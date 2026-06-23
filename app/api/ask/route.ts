@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
 import { validateApiSecret } from "@/lib/auth/api-secret";
+import { generateFallbackAnswer } from "@/lib/ask-fallback";
 
 const AskSchema = z.object({
   question: z.string().min(1),
@@ -40,10 +41,11 @@ export async function POST(request: Request) {
 
     const userMessage = `System State:\n${context || "No active incidents loaded"}\n\nOperator Question: ${question}\n\nAnswer based ONLY on the data above. If the data doesn't support an answer, say so.`;
 
+    const fallbackResult = generateFallbackAnswer(question, [], []);
     const fallback: LocalAskResult = {
-      answer: generateLocalAnswer(question),
-      groundedIn: ["Local system state"],
-      confidence: 0.75,
+      answer: fallbackResult.answer,
+      groundedIn: fallbackResult.groundedIn,
+      confidence: fallbackResult.confidence,
     };
 
     const response = await callNimWithRetry({
@@ -76,19 +78,4 @@ export async function POST(request: Request) {
   }
 }
 
-function generateLocalAnswer(question: string): string {
-  const q = question.toLowerCase();
-  if (q.includes("why") && q.includes("rank")) {
-    return "The prioritization is based on a weighted composite of urgency, severity, affected population, compounding risk, service criticality, time sensitivity, and signal confidence. The top-ranked incident scores higher across these factors.";
-  }
-  if (q.includes("next 30") || q.includes("what should") || q.includes("do first")) {
-    return "Focus on the #1 priority incident. Deploy the assigned response team, establish communication with on-ground contacts, and begin resource mobilization immediately.";
-  }
-  if (q.includes("risk") && q.includes("delay")) {
-    return "Delaying response to high-severity incidents leads to escalation of downstream risks, increased affected population, potential casualties, and broader service disruption. Time-sensitive incidents degrade rapidly without intervention.";
-  }
-  if (q.includes("ignore") || q.includes("skip")) {
-    return "The lowest priority incident can be safely deferred as it has lower severity, fewer affected people, and minimal downstream risk compared to current top priorities.";
-  }
-  return "I can help with questions about incident priorities, recommended actions, risks of delays, and team assignments. Please ask a specific question about your incidents.";
-}
+
