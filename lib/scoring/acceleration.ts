@@ -30,7 +30,7 @@ export function computeAccelerationMetrics(
       aiAssistedTime: `${issuesPerMinute.toFixed(0)}+ per minute`,
       improvement: `${Math.round((issuesPerMinute / 1.5 - 1) * 100)}% more`,
       description:
-        "Operators manually triage 1–2 issues per minute under pressure. The AI pipeline processes all incidents simultaneously, enabling ${issuesPerMinute.toFixed(0)}+ triages per minute.",
+        `Operators manually triage 1–2 issues per minute under pressure. The AI pipeline processes all incidents simultaneously, enabling ${issuesPerMinute.toFixed(0)}+ triages per minute.`,
     },
     {
       metric: "Duplicate Review Effort",
