@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { callNimWithRetry, parseJsonResponse } from "@/lib/ai/nim-client";
 import { validateApiSecret } from "@/lib/auth/api-secret";
-import { generateFallbackAnswer } from "@/lib/ask-fallback";
+import { generateLocalAnswer } from "@/lib/ask-fallback";
 
 const AskSchema = z.object({
   question: z.string().min(1),
@@ -41,11 +41,10 @@ export async function POST(request: Request) {
 
     const userMessage = `System State:\n${context || "No active incidents loaded"}\n\nOperator Question: ${question}\n\nAnswer based ONLY on the data above. If the data doesn't support an answer, say so.`;
 
-    const fallbackResult = generateFallbackAnswer(question, [], []);
     const fallback: LocalAskResult = {
-      answer: fallbackResult.answer,
-      groundedIn: fallbackResult.groundedIn,
-      confidence: fallbackResult.confidence,
+      answer: generateLocalAnswer(question),
+      groundedIn: ["Local system state"],
+      confidence: 0.75,
     };
 
     const response = await callNimWithRetry({

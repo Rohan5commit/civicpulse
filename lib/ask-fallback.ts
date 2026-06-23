@@ -5,6 +5,27 @@ import type {
 } from "@/lib/schemas";
 
 /**
+ * Simple keyword-matched fallback for server-side routes.
+ * No incident data needed — returns a generic answer based on question keywords.
+ */
+export function generateLocalAnswer(question: string): string {
+  const q = question.toLowerCase();
+  if (q.includes("why") && q.includes("rank")) {
+    return "The prioritization is based on a weighted composite of urgency, severity, affected population, compounding risk, service criticality, time sensitivity, and signal confidence. The top-ranked incident scores higher across these factors.";
+  }
+  if (q.includes("next 30") || q.includes("what should") || q.includes("do first")) {
+    return "Focus on the #1 priority incident. Deploy the assigned response team, establish communication with on-ground contacts, and begin resource mobilization immediately.";
+  }
+  if (q.includes("risk") && q.includes("delay")) {
+    return "Delaying response to high-severity incidents leads to escalation of downstream risks, increased affected population, potential casualties, and broader service disruption. Time-sensitive incidents degrade rapidly without intervention.";
+  }
+  if (q.includes("ignore") || q.includes("skip")) {
+    return "The lowest priority incident can be safely deferred as it has lower severity, fewer affected people, and minimal downstream risk compared to current top priorities.";
+  }
+  return "I can help with questions about incident priorities, recommended actions, risks of delays, and team assignments. Please ask a specific question about your incidents.";
+}
+
+/**
  * Pure fallback answer generation — no NIM dependencies.
  * Shared between client components and server-side agent modules.
  */
